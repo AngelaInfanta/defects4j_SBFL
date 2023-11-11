@@ -52,6 +52,7 @@ my $XML_FILE = "coverage.xml";
 # Corbetura scripts
 my $CORBETURA_MERGE  = "$SCRIPT_DIR/projects/lib/cobertura-merge.sh";
 my $CORBETURA_REPORT = "$SCRIPT_DIR/projects/lib/cobertura-report.sh";
+my $COVERAGE_REPORT = "$SCRIPT_DIR/projects/lib/coverage.sh";
 
 =pod
 
@@ -87,13 +88,13 @@ sub coverage {
     system("rm -f $serfile");
 
     # Instrument all classes provided
-	$project->coverage_instrument($instrument_classes) or return undef;
+    #$project->coverage_instrument($instrument_classes) or return undef;
 
     # Execute test suite
     if ($relevant_tests) {
-        $project->run_relevant_tests($log_file) or return undef;
+        #$project->run_relevant_tests($log_file) or return undef;
     } else {
-        $project->run_tests($log_file, $single_test) or return undef;
+        #$project->run_tests($log_file, $single_test) or return undef;
     }
 
 	# Generate coverage report
@@ -110,10 +111,11 @@ sub coverage {
 
 	} else {
 		# Generate XML directly if merge is not needed.
-		$project->coverage_report($src_dir) or die "Could not create coverage report";
+		system("sh $COVERAGE_REPORT $instrument_classes")
+                #$project->coverage_report($src_dir) or die "Could not create coverage report";
 	}
 
-	return  _get_info_from_xml($xmlfile);
+	#return  _get_info_from_xml($xmlfile);
 }
 
 =pod
@@ -142,7 +144,7 @@ sub coverage_ext {
 
     # Parse xml output and return coverage ratios
 	my $xmlfile  = "$project->{prog_root}/$XML_FILE";
-	return _get_info_from_xml($xmlfile);
+	#return _get_info_from_xml($xmlfile);
 }
 
 =pod

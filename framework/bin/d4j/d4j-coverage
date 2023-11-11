@@ -150,27 +150,27 @@ if (defined $TEST_SUITE) {
     $project->compile_tests() or die "Cannot compile test suite!";
     $cov_results = Coverage::coverage($project, $classes, $src_dir, $fail_tests, undef, $SINGLE_TEST);
 }
-defined $cov_results or die "Couldn't obtain coverage results!";
+#defined $cov_results or die "Couldn't obtain coverage results!";
 
-open(CSV, ">$WORK_DIR/summary.csv") or die "Cannot write output csv file $!";
-print(CSV "LinesTotal,LinesCovered,ConditionsTotal,ConditionsCovered\n");
-printf(CSV "%d,%d,%d,%d\n",
-        $cov_results->{lines_total},
-        $cov_results->{lines_covered},
-        $cov_results->{branches_total},
-        $cov_results->{branches_covered});
-close(CSV);
-
-printf("%18s: %d\n",     "Lines total",        $cov_results->{lines_total});
-printf("%18s: %d\n",     "Lines covered",      $cov_results->{lines_covered});
-printf("%18s: %d\n",     "Conditions total",   $cov_results->{branches_total});
-printf("%18s: %d\n",     "Conditions covered", $cov_results->{branches_covered});
-printf("%18s: %.1f%%\n", "Line coverage",      $cov_results->{lines_covered}/$cov_results->{lines_total}*100);
-printf("%18s: %.1f%%\n", "Condition coverage", ($cov_results->{branches_total} == 0 ? 0 : $cov_results->{branches_covered}/$cov_results->{branches_total}*100));
+#open(CSV, ">$WORK_DIR/summary.csv") or die "Cannot write output csv file $!";
+#print(CSV "LinesTotal,LinesCovered,ConditionsTotal,ConditionsCovered\n");
+#printf(CSV "%d,%d,%d,%d\n",
+#        $cov_results->{lines_total},
+#        $cov_results->{lines_covered},
+#        $cov_results->{branches_total},
+#        $cov_results->{branches_covered});
+#close(CSV);
+#
+#printf("%18s: %d\n",     "Lines total",        $cov_results->{lines_total});
+#printf("%18s: %d\n",     "Lines covered",      $cov_results->{lines_covered});
+#printf("%18s: %d\n",     "Conditions total",   $cov_results->{branches_total});
+#printf("%18s: %d\n",     "Conditions covered", $cov_results->{branches_covered});
+#printf("%18s: %.1f%%\n", "Line coverage",      $cov_results->{lines_covered}/$cov_results->{lines_total}*100);
+#printf("%18s: %.1f%%\n", "Condition coverage", ($cov_results->{branches_total} == 0 ? 0 : $cov_results->{branches_covered}/$cov_results->{branches_total}*100));
 #printf("%17s: %.1f seconds\n", "Total run time", ($timeAnalysis));
 
 # Issue a warning if any test failed as this might give misleading results
-Utils::has_failing_tests($fail_tests)
-        and print(STDERR "WARNING: Some tests failed (see $fail_tests)!\n");
+#Utils::has_failing_tests($fail_tests)
+#        and print(STDERR "WARNING: Some tests failed (see $fail_tests)!\n");
 
 1;

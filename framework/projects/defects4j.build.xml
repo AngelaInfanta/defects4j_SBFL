@@ -27,7 +27,7 @@ build file that defines all export targets (defect4j.export.xml) and the
 project-specific build file ("project_id"/"project_id".build.xml) for the
 "project_id" (Lang, Math, etc.) of the checked-out project version.
 #############################################################################-->
-<project name="Defects4J" basedir="${basedir}">
+<project name="Defects4J" basedir="${basedir}" xmlns:gzoltar="antlib:com.gzoltar.ant">
     <!-- Ensure basedir is properly set -->
     <property name="d4j.workdir" value="${basedir}" />
     <property name="d4j.properties" value="defects4j.build.properties" />
@@ -48,6 +48,13 @@ project-specific build file ("project_id"/"project_id".build.xml) for the
     <!-- Dependencies used by all projects -->
     <property name="junit.jar"  value="${d4j.home}/framework/projects/lib/junit-4.11.jar"/>
     <property name="cobertura.jar" value="${d4j.home}/framework/projects/lib/cobertura-2.0.3.jar"/>
+    <property name="gzoltar.jar" value="${d4j.home}/framework/projects/lib/gzoltar-ant.jar"/>
+    <property name="gzoltar-cli.jar" value="${d4j.home}/framework/projects/lib/gzoltar-cli.jar"/>
+    <property name="gzoltar-agent-rt.jar" value="${d4j.home}/framework/projects/lib/gzoltar-agent-rt.jar"/>
+    <property name="hamcrest.jar" value="${d4j.home}/framework/projects/lib/hamcrest.jar"/>
+    <taskdef uri="antlib:com.gzoltar.ant" resource="antlib.xml">
+      <classpath path="${gzoltar.jar}"/>
+    </taskdef>
 
     <!-- Location of libraries of test generation tool-->
     <property name="d4j.dir.lib.testgen.gen" value="${d4j.home}/framework/lib/test_generation/generation"/>
@@ -64,12 +71,17 @@ project-specific build file ("project_id"/"project_id".build.xml) for the
     <property name="d4j.dir.classes.testgen" value="${d4j.workdir}/.classes_testgen"/>
     <!-- Directory of instrumented classes (e.g., for coverage analysis)-->
     <property name="d4j.dir.classes.instrumented" value="${d4j.workdir}/.classes_instrumented"/>
+    <!-- Directory of compiled source classes -->
+    <property name="d4j.dir.classes.source" value="${d4j.workdir}/build/org"/>
+    <!-- Directory of compiled test classes -->
+    <property name="d4j.dir.classes.test" value="${d4j.workdir}/build-tests/org"/>
     <!-- Directory of mutated classes-->
     <property name="d4j.dir.classes.mutated" value="${d4j.workdir}/.classes_mutated"/>
     <!-- Directory of coverage reports-->
-    <property name="d4j.dir.coverage.report" value="${d4j.workdir}" />
+    <property name="d4j.dir.coverage.report" value="${d4j.workdir}/coverage-report" />
     <!-- Data file that holds coverage information-->
     <property name="d4j.file.cobertura.ser" value="cobertura.ser" />
+    <property name="d4j.file.gzoltar.ser" value="gzoltar.ser" />
 
     <!-- Additional properties such as tests to exclude.
          This property file is automatically generated. -->
@@ -111,6 +123,7 @@ project-specific build file ("project_id"/"project_id".build.xml) for the
                 <pathelement location="${d4j.dir.classes.instrumented}" />
                 <pathelement path="${formatter.jar}" />
                 <pathelement path="${cobertura.jar}" />
+                <pathelement path="${gzoltar.jar}" />
                 <path refid="d4j.test.classpath"/>
             </classpath>
 
@@ -298,6 +311,7 @@ project-specific build file ("project_id"/"project_id".build.xml) for the
                 <path refid="d4j.test.classpath"/>
                 <!-- Add dependencies to code coverage tools -->
                 <pathelement path="${cobertura.jar}" />
+                <pathelement path="${gzoltar.jar}" />
                 <!-- Add dependencies to runtime libraries of test generation tools -->
                 <path refid="d4j.lib.testgen.rt"/>
             </classpath>
@@ -330,7 +344,7 @@ project-specific build file ("project_id"/"project_id".build.xml) for the
 
     <path id="cobertura.classpath.include" />
 
-    <target name="coverage.instrument" depends="compile,check.classes.uptodate,reset.cobertura.ser" unless="classes.instrumented.uptodate">
+    <target name="coverage2.instrument" depends="compile,check.classes.uptodate,reset.cobertura.ser" unless="classes.instrumented.uptodate">
         <pathconvert refid="cobertura.classpath" property="cobertura.classpath.property" />
 
         <delete dir="${d4j.dir.classes.instrumented}"/>
@@ -346,7 +360,87 @@ project-specific build file ("project_id"/"project_id".build.xml) for the
         <copy file="${d4j.workdir}/${d4j.file.cobertura.ser}" todir="${d4j.dir.classes.instrumented}" overwrite="true"/>
     </target>
 
+    <target name="coverage.instrument" depends="compile,check.classes.uptodate,reset.gzoltar.ser">
+      <gzoltar:instrument destdir="${d4j.dir.classes.instrumented}">
+        <classpath>
+          <pathelement location="${d4j.dir.classes.source}" />
+          <pathelement path="${gzoltar-agent-rt.jar}" />
+        </classpath>
+
+        <fileset dir="${d4j.dir.classes.source}" includes="*" />
+      </gzoltar:instrument>
+    </target>
+
+    <target name="coverage.test" depends="coverage.instrument">
+      <property name="test.methods.file" value="${d4j.workdir}/.test_methods.txt" />
+      <delete file="${test.methods.file}" />
+
+      <java classname="com.gzoltar.cli.Main" fork="true">
+          <classpath>
+              <pathelement location="${d4j.dir.classes.instrumented}" />
+              <pathelement location="${d4j.dir.classes.test}" />
+              <pathelement path="${junit.jar}" />
+              <pathelement path="${hamcrest.jar}" />
+              <pathelement path="${gzoltar-cli.jar}" />
+          </classpath>
+          <arg value="listTestMethods" />
+          <arg value="${d4j.dir.classes.test}" />
+          <arg value="--outputFile" />
+          <arg value="${test.methods.file}" />
+          <arg value="--includes" />
+          <arg value="*" />
+      </java>
+
+      <gzoltar:coverage destfile="${d4j.workdir}/${d4j.file.gzoltar.ser}"
+                        buildLocation="${d4j.dir.classes.source}"
+                        includes="*"
+                        inclNoLocationClasses="false"
+                        output="file">
+          <java classname="com.gzoltar.cli.Main" fork="true">
+              <classpath>
+                  <pathelement location="${d4j.dir.classes.source}" />
+                  <pathelement location="${d4j.dir.classes.test}" />
+                  <pathelement path="${junit.jar}" />
+                  <pathelement path="${hamcrest.jar}" />
+                  <pathelement path="${gzoltar-ant.jar}" />
+                  <pathelement path="${gzoltar-cli.jar}" />
+              </classpath>
+              <jvmArg value="-XX:MaxPermSize=2048M" />
+              <arg value="runTestMethods" />
+              <arg value="--testMethods" />
+              <arg value="${test.methods.file}" />
+              <arg value="--collectCoverage" />
+          </java>
+      </gzoltar:coverage>
+
+      <property name="gzoltar.ser.file" value="${d4j.workdir}/${d4j.file.gzoltar.ser}" />
+
+      <java classname="com.gzoltar.cli.Main" fork="true">
+          <classpath>
+              <pathelement location="${d4j.dir.classes.instrumented}" />
+              <pathelement location="${d4j.dir.classes.test}" />
+              <pathelement path="${junit.jar}" />
+              <pathelement path="${hamcrest.jar}" />
+              <pathelement path="${gzoltar-agent-rt.jar}" />
+              <pathelement path="${gzoltar-cli.jar}" />
+          </classpath>
+          <jvmArg value="-XX:MaxPermSize=2048M" />
+          <jvmArg value="-Dgzoltar-agent.destfile=${gzoltar.ser.file}" />
+          <jvmArg value="-Dgzoltar-agent.output=file" />
+          <arg value="runTestMethods" />
+          <arg value="--testMethods" />
+          <arg value="${test.methods.file}" />
+          <arg value="--offline" />
+          <arg value="--collectCoverage" />
+      </java>
+    </target>
+
     <target name="coverage.report">
+        <gzoltar:fl-report buildLocation="${d4j.dir.classes.source}" granularity="line" outputDirectory="${d4j.dir.coverage.report}" dataFile="${d4j.workdir}/${d4j.file.gzoltar.ser}">
+        </gzoltar:fl-report>
+    </target>
+
+    <target name="coverage2.report">
         <mkdir dir="${d4j.dir.coverage.report}" />
 
         <!-- <cobertura-report format="html" destdir="${coverage.dir}" srcdir="${coverage.src.dir}" /> -->
@@ -391,6 +485,11 @@ project-specific build file ("project_id"/"project_id".build.xml) for the
 -->
     <target name="reset.cobertura.ser" if="classes.instrumented.uptodate">
         <copy file="${d4j.dir.classes.instrumented}/${d4j.file.cobertura.ser}"
+              todir="${d4j.workdir}" overwrite="true" />
+    </target>
+
+    <target name="reset.gzoltar.ser" if="classes.instrumented.uptodate">
+        <copy file="${d4j.dir.classes.instrumented}/${d4j.file.gzoltar.ser}"
               todir="${d4j.workdir}" overwrite="true" />
     </target>
 

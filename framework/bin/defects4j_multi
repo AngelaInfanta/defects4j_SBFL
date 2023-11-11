@@ -1,0 +1,117 @@
+#!/bin/bash
+case $1 in
+  "checkout")
+    shift 1
+    while getopts ":p:b:w:v:h" flag ;do
+      case ${flag} in
+        p) project=${OPTARG};;
+        b)
+          bugs=${OPTARG}
+          bugs=$(echo $bugs | tr " " "\n" | sort -g | xargs)
+        ;;
+        v)
+          version=${OPTARG}
+          project="${version%%-*}"
+          bugs="${version#*-}"
+          bugs=$(echo $bugs | tr "-" "\n" | sort -g | xargs)
+        ;;
+        w) workdir=${OPTARG};;
+        h)
+          echo "USAGE: defects4j_multi checkout [-p <project> -b \"<bug> ...\" OR -v <version>] [-w <work dir>]"
+          exit 1
+        ;;
+        \?)
+          echo "Unsupported option: -$OPTARG" 1>&2
+          exit 1
+        ;;
+        :) echo "Invalid option: $OPTARG requires an argument" 1>&2;;
+      esac
+    done
+    if [ -z "$project" ] || [ -z "$bugs" ]; then
+      echo "Error: please provide a project name and bug numbers"
+      exit 1
+    fi
+    if [ -z "$workdir" ]; then
+      workdir="/tmp/$project-${bugs// /-}"
+      echo "Using default workdir: $workdir"
+    fi
+    python3 $D4J_HOME/framework/bin/checkout.py "$project-${bugs// /-}" -w "$workdir"
+    echo "multi=$project-${bugs// /-}" >> "$workdir/.defects4j.config"
+    for bug in ${bugs}; do
+      python3 $D4J_HOME/framework/bin/backtrack.py "$project" "$bug" "${bugs##* }" > "$workdir/bug.locations.$bug"
+    done
+  ;;
+  "coverage")
+    shift 1
+    defects4j coverage "$@"
+  ;;
+  "patch")
+    shift 1
+    $D4J_HOME/framework/bin/patchBug.sh "$@"
+  ;;
+  "identifyDiff")
+    shift 1
+    $D4J_HOME/framework/bin/find_faults.sh "$@"
+  ;;
+  "identify")
+    shift 1
+    version="$(grep "multi=" ".defects4j.config" | cut -d '=' -f 2)"
+    if [ ! "$@" ] && [ "$version" ]; then
+      $D4J_HOME/framework/bin/identify_bugs.sh -v "$version"
+    else
+      $D4J_HOME/framework/bin/identify_bugs.sh "$@"
+    fi
+  ;;
+  "de-identify")
+    shift 1
+    coverage_dir="$1"
+    if [ "$coverage_dir" == '-h' ] || [ -z "$coverage_dir" ]; then
+      echo "USAGE: defects4j_multi de-identify <coverage dir>"
+      exit 0
+    fi
+    sed -i 's/\([0-9]\+\):[0-9]\+/\1/' "$coverage_dir/spectra.csv"
+  ;;
+  "configure")
+    shift 1
+    while getopts ":f:h" flag ;do
+      case ${flag} in
+        f)
+          home="$(readlink -f "$(echo ${D4J_HOME/"~"/~})")"
+          if [ ! -f "$home/framework/bin/config.json" ]; then
+            echo "{}" > "$home/framework/bin/config.json"
+          fi
+          python3 -c """import json
+config=json.load(open(\"$D4J_HOME/framework/bin/config.json\"))
+config['FAULT_DIR']='$(readlink -f "$(echo ${OPTARG/"~"/~})")'
+json.dump(config, open(\"$D4J_HOME/framework/bin/config.json\", 'w'))
+"""
+        ;;
+        h)
+          echo "USAGE: defects4j_multi configure [-f path/to/fault_data]"
+          exit 1
+        ;;
+        \?)
+          echo "Unsupported option: -$OPTARG" 1>&2
+          exit 1
+        ;;
+        :) echo "Invalid option: $OPTARG requires an argument" 1>&2;;
+      esac
+    done
+  ;;
+  "compile")
+    shift 1
+    defects4j compile "$@"
+  ;;
+  "-h" | "" | *)
+    echo "USAGE: defects4j_multi <task> [<options>/-h]"
+    echo "  where <task> is one of:"
+    echo "    * checkout    : execute a multifault checkout"
+    echo "    * compile     : synonym for defects4j compile (compile project)"
+    echo "    * coverage    : synonym for defects4j coverage (collect coverage)"
+    echo "    * patch       : attempt to patch a bug"
+    echo "    * configure   : configure a property"
+    echo "    * identify    : identify the bugs in a multifault version"
+    echo "    * identifyDiff: identify the bugs by diff in a multifault version"
+    echo "    * de-identify : remove identified bugs in a version"
+  ;;
+esac
